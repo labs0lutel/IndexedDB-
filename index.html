@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndexedDB with HTML Table</title>
+    <style>
+        .action { cursor: pointer; color: blue; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>IndexedDB Example</h1>
+
+    <table id="dataTable" border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Age</th>
+                <th>Изменить</th>
+                <th>Удалить</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h2>Add New Entry</h2>
+    <form id="dataForm">
+        <label for="name">Name:</label>
+        <input type="text" id="name" required>
+        <label for="age">Age:</label>
+        <input type="number" id="age" required>
+        <button type="submit">Save</button>
+    </form>
+
+    <script>
+        let db;
+const dbName = 'testDB';
+const tableName = 'users';
+
+const request = indexedDB.open(dbName, 1);
+
+request.onupgradeneeded = function(event) {
+    db = event.target.result;
+    if (!db.objectStoreNames.contains(tableName)) {
+        const store = db.createObjectStore(tableName, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('name', 'name', { unique: false });
+    }
+};
+
+request.onsuccess = function(event) {
+    db = event.target.result;
+    updateTable();
+};
+
+request.onerror = function(event) {
+    console.error("Error opening database:", event.target.errorCode);
+};
+
+function updateTable() {
+    const transaction = db.transaction([tableName], 'readonly');
+    const store = transaction.objectStore(tableName);
+    const request = store.getAll();
+
+    request.onsuccess = function(event) {
+        const users = event.target.result;
+        const tbody = document.querySelector('#dataTable tbody');
+        tbody.innerHTML = ''; 
+
+        users.forEach(user => {
+            const row = document.createElement('tr');
+            row.setAttribute('data-id', user.id); 
+            row.innerHTML = `
+                <td>${user.id}</td>
+                <td contentEditable="true">${user.name}</td>
+                <td contentEditable="true">${user.age}</td>
+                <td><span class='action' onclick='updateItem(${user.id})'>Изменить</span></td>
+                <td><span class='action' onclick='deleteItem(${user.id})'>Удалить</span></td>
+            `;
+            tbody.appendChild(row);
+        });
+    };
+}
+
+document.getElementById('dataForm').onsubmit = function(event) {
+    event.preventDefault();
+
+    const name = document.getElementById('name').value;
+    const age = parseInt(document.getElementById('age').value, 10);
+
+    const transaction = db.transaction([tableName], 'readwrite');
+    const store = transaction.objectStore(tableName);
+    const request = store.add({ name, age });
+
+    request.onsuccess = function() {
+        alert('Запись успешно добавлена');
+        updateTable();
+    };
+
+    request.onerror = function() {
+        console.error("Error adding entry:", request.error);
+    };
+
+    event.target.reset();
+};
+
+function updateItem(id) {
+    const row = document.querySelector(`[data-id='${id}']`);
+    if (row) {
+        const name = row.cells[1].textContent;
+        const age = parseInt(row.cells[2].textContent, 10);
+
+        const transaction = db.transaction([tableName], 'readwrite');
+        const store = transaction.objectStore(tableName);
+        const request = store.put({ id, name, age });
+
+        request.onsuccess = function() {
+            alert('Запись успешно обновлена');
+            updateTable();
+        };
+
+        request.onerror = function() {
+            console.error("Error updating entry:", request.error);
+        };
+    } else {
+        console.error(`Row with id ${id} not found`);
+    }
+}
+
+function deleteItem(id) {
+    const transaction = db.transaction([tableName], 'readwrite');
+    const store = transaction.objectStore(tableName);
+    const request = store.delete(id);
+
+    request.onsuccess = function() {
+        alert('Запись успешно удалена');
+        updateTable();
+    };
+
+    request.onerror = function() {
+        console.error("Error deleting entry:", request.error);
+    };
+}
+
+    </script>
+</body>
+</html>
